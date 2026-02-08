@@ -1,0 +1,68 @@
+{
+  "gateway": {
+    "bind": "tailnet",
+    "port": 18789,
+    "auth": {
+      "mode": "token",
+      "token": "YOUR_LONG_RANDOM_TOKEN_HERE",
+      "allowTailscale": true
+    },
+    "trustedProxies": ["127.0.0.1"],
+    "controlUi": {
+      "enabled": true,
+      "allowInsecureAuth": true
+    }
+  },
+  "discovery": {
+    "mdns": { "mode": "minimal" }
+  },
+  "channels": {
+    "telegram": {
+      "dmPolicy": "allowlist",
+      "allowedUsers": ["YOUR_TELEGRAM_ID"]
+    }
+  },
+  "models": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://host.docker.internal:11434",
+        "models": []
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "/home/node/.openclaw/workspace",
+      "model": {
+        "primary": ""
+      },
+      "thinkingDefault": "low",
+      "sandbox": {
+        "mode": "all",
+        "scope": "agent"
+      }
+    }
+  },
+  "session": {
+    "dmScope": "per-channel-peer",
+    "reset": {
+      "mode": "idle",
+      "idleMinutes": 60
+    }
+  },
+  "tools": {
+    "deny": ["exec", "browser", "process"],
+    "elevated": {
+      "enabled": false
+    }
+  },
+  "logging": {
+    "level": "info",
+    "redactSensitive": "tools",
+    "redactPatterns": [
+      "sk-[a-zA-Z0-9]+",
+      "sk-ant-[a-zA-Z0-9-]+",
+      "[0-9]{10}:[A-Za-z0-9_-]+"
+    ]
+  }
+}

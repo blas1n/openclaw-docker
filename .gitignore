@@ -1,0 +1,41 @@
+# Configuration files (contain secrets)
+openclaw.json
+.env
+.env.local
+.env.*.local
+
+# OpenClaw data directory
+data/
+openclaw-data/
+
+# Logs
+logs/
+*.log
+
+# Backup files
+*.backup
+*.bak
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Docker volumes backup
+volumes/
+
+# Sensitive files
+secrets/
+tokens/
+credentials/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

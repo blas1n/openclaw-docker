@@ -1,0 +1,100 @@
+services:
+  # Tailscale sidecar - provides secure Tailscale network access
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: openclaw-tailscale
+    hostname: openclaw  # This will be the Tailscale device name
+    restart: unless-stopped
+
+    # Allow access to host machine for Ollama (GPU-accelerated)
+    # This is shared with openclaw container via network_mode
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Tailscale requires NET_ADMIN and NET_RAW
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+
+    # Persistent Tailscale state
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+
+    # Tailscale configuration
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}  # Set in .env file
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      - TS_ACCEPT_DNS=false
+      - TS_EXTRA_ARGS=--advertise-tags=tag:openclaw
+
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+
+  # OpenClaw - uses Tailscale's network
+  openclaw:
+    image: alpine/openclaw:latest
+    container_name: openclaw
+    restart: unless-stopped
+
+    # Use Tailscale sidecar's network (all traffic routes through Tailscale)
+    # Note: extra_hosts is configured on tailscale service (network provider)
+    # OpenClaw inherits the network configuration including host.docker.internal
+    network_mode: "service:tailscale"
+    depends_on:
+      - tailscale
+
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+    # Tmpfs for runtime-only writable directories
+    tmpfs:
+      - /tmp:mode=1777,size=1G
+      - /home/node/.npm:mode=755,size=512M
+      - /home/node/.cache:mode=755,size=512M
+
+    # Volumes for persistent data
+    volumes:
+      - openclaw-data:/home/node/.openclaw
+      - ./openclaw.json:/home/node/.openclaw/openclaw.json:ro
+      - ./logs:/var/log/openclaw:rw
+
+    # No port mapping needed - accessible via Tailscale IP
+    # Access: http://<tailscale-ip>:18789
+
+    # Environment variables
+    environment:
+      - NODE_ENV=production
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+    # Health check
+    # Dynamically detects Tailscale IP from fib_trie (openclaw binds to 'lan', not localhost)
+    healthcheck:
+      test: ["CMD", "sh", "-c", "TS_IP=$$(grep -B 1 'host LOCAL' /proc/net/fib_trie | grep '|-- 100\\.' | grep -oP '100\\.\\d+\\.\\d+\\.\\d+'); wget -q -O - http://$$TS_IP:18789/health > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  openclaw-data:
+    driver: local
+  tailscale-state:
+    driver: local
