@@ -33,6 +33,14 @@ services:
     security_opt:
       - no-new-privileges:true
 
+    # Health check - ensures Tailscale Serve is configured
+    healthcheck:
+      test: ["CMD", "sh", "-c", "tailscale serve status | grep -q 'https://openclaw' || (TS_IP=$$(tailscale ip -4) && tailscale serve --https=443 --bg http://$$TS_IP:18789 >/dev/null 2>&1); exit 0"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # OpenClaw - uses Tailscale's network
   openclaw:
     image: alpine/openclaw:latest

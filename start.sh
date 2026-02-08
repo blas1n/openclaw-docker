@@ -113,31 +113,8 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
 done
 
 echo ""
-
-# Enable Tailscale HTTPS Serve
-echo -e "${GREEN}🔐 Enabling Tailscale HTTPS...${NC}"
-
-# Get Tailscale IP for proxy target
-if [ -n "$CONTAINER_TAILSCALE_IP" ] && [ "$CONTAINER_TAILSCALE_IP" != "" ]; then
-    PROXY_TARGET="http://${CONTAINER_TAILSCALE_IP}:18789"
-else
-    # Fallback to getting IP again
-    CONTAINER_TAILSCALE_IP=$(docker exec openclaw-tailscale tailscale ip -4 2>/dev/null || echo "")
-    if [ -n "$CONTAINER_TAILSCALE_IP" ]; then
-        PROXY_TARGET="http://${CONTAINER_TAILSCALE_IP}:18789"
-    else
-        echo -e "${YELLOW}   ⚠️  Cannot determine Tailscale IP, skipping HTTPS setup${NC}"
-        PROXY_TARGET=""
-    fi
-fi
-
-if [ -n "$PROXY_TARGET" ]; then
-    if docker exec openclaw-tailscale tailscale serve status 2>&1 | grep -q "No serve config"; then
-        echo "   Setting up HTTPS proxy to $PROXY_TARGET..."
-        docker exec openclaw-tailscale tailscale serve --https 443 --bg "$PROXY_TARGET" 2>&1 | grep -v "Serve is not enabled" || true
-        sleep 2
-    fi
-fi
+echo -e "${GREEN}🔐 Tailscale HTTPS...${NC}"
+echo "   Tailscale Serve is managed by healthcheck (auto-configured on container start)"
 
 TAILSCALE_HOSTNAME=$(docker exec openclaw-tailscale tailscale status --json 2>/dev/null | grep -o '"DNSName":"[^"]*"' | cut -d'"' -f4 | sed 's/\.$//' || echo "")
 
