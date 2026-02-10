@@ -41,10 +41,40 @@ services:
       retries: 3
       start_period: 30s
 
+  # Init container - copies Docker CLI binary into shared volume
+  docker-cli-init:
+    image: docker:27-cli
+    container_name: openclaw-docker-cli-init
+    restart: "no"
+    volumes:
+      - docker-cli:/out
+    entrypoint: ["sh", "-c", "cp /usr/local/bin/docker /out/docker && chmod 755 /out/docker"]
+
+  # Docker-in-Docker (rootless) - isolated Docker daemon for sandbox containers
+  # Sandbox containers run INSIDE this daemon, fully isolated from host Docker.
+  # Both OpenClaw and DinD mount ./data at the same path (/home/node/.openclaw),
+  # so bind mount paths resolve correctly without host-specific paths.
+  dind:
+    image: docker:27-dind
+    container_name: openclaw-dind
+    restart: unless-stopped
+    # privileged required: rootless DinD fails on Docker Desktop VM (linuxkit kernel)
+    # Still safer than DooD: sandbox escape only reaches DinD, not host Docker
+    privileged: true
+    volumes:
+      - ./data:/home/node/.openclaw:rw          # Same path as OpenClaw sees
+      - dind-data:/var/lib/docker  # Persistent image cache
+    environment:
+      - DOCKER_TLS_CERTDIR=  # Disable TLS, listen on tcp://0.0.0.0:2375
+    # Expose only on localhost - OpenClaw reaches via host.docker.internal
+    ports:
+      - "127.0.0.1:2375:2375"
+
   # OpenClaw - uses Tailscale's network
   openclaw:
-    image: alpine/openclaw:latest
+    image: ghcr.io/openclaw/openclaw:latest
     container_name: openclaw
+    user: "1000:1000"
     restart: unless-stopped
 
     # Use Tailscale sidecar's network (all traffic routes through Tailscale)
@@ -52,7 +82,12 @@ services:
     # OpenClaw inherits the network configuration including host.docker.internal
     network_mode: "service:tailscale"
     depends_on:
-      - tailscale
+      tailscale:
+        condition: service_started
+      docker-cli-init:
+        condition: service_completed_successfully
+      dind:
+        condition: service_started
 
     # Security hardening
     security_opt:
@@ -71,26 +106,21 @@ services:
 
     # Volumes for persistent data
     volumes:
-      - openclaw-data:/home/node/.openclaw
-      - ./openclaw.json:/home/node/.openclaw/openclaw.json:ro
+      - ./data:/home/node/.openclaw:rw
       - ./logs:/var/log/openclaw:rw
+      - docker-cli:/usr/local/sbin:ro
 
     # No port mapping needed - accessible via Tailscale IP
     # Access: http://<tailscale-ip>:18789
 
     # Environment variables
+    env_file:
+      - .env
+
+    # Additional environment variables
     environment:
       - NODE_ENV=production
-
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '1.0'
-        reservations:
-          memory: 512M
-          cpus: '0.25'
+      - DOCKER_HOST=tcp://host.docker.internal:2375
 
     # Health check
     # Dynamically detects Tailscale IP from fib_trie (openclaw binds to 'lan', not localhost)
@@ -102,7 +132,9 @@ services:
       start_period: 40s
 
 volumes:
-  openclaw-data:
-    driver: local
   tailscale-state:
+    driver: local
+  docker-cli:
+    driver: local
+  dind-data:
     driver: local

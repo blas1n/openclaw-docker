@@ -89,9 +89,35 @@ docker-compose pull
 
 echo ""
 
+mkdir -p ./data ./data/credentials ./data/agents/main/sessions
+chmod 700 ./data ./data/credentials
+cp ./openclaw.json ./data/openclaw.json
+
+# Inject API keys from .env into sandbox.docker.env
+# All non-TS_ variables are forwarded to sandbox containers
+ENV_PAIRS=""
+while IFS='=' read -r key value; do
+    [ -n "$ENV_PAIRS" ] && ENV_PAIRS="$ENV_PAIRS, "
+    ENV_PAIRS="${ENV_PAIRS}\"${key}\": \"${value}\""
+done < <(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' .env | grep -v '^TS_')
+if [ -n "$ENV_PAIRS" ]; then
+    sed -i '' "s|\"env\": {}|\"env\": { ${ENV_PAIRS} }|" ./data/openclaw.json
+    echo -e "${GREEN}🔑 Injected sandbox env keys from .env${NC}"
+fi
+
 # Start containers
-echo -e "${GREEN}🐳 Starting Tailscale sidecar and OpenClaw...${NC}"
+echo -e "${GREEN}🐳 Starting Tailscale sidecar, DinD, and OpenClaw...${NC}"
 docker-compose up -d
+
+# Wait for DinD to be ready, then pre-pull sandbox image
+echo -e "${GREEN}📦 Waiting for DinD and pulling sandbox image...${NC}"
+for i in $(seq 1 10); do
+    if DOCKER_HOST=tcp://127.0.0.1:2375 docker info &>/dev/null; then
+        DOCKER_HOST=tcp://127.0.0.1:2375 docker pull node:20-bookworm-slim 2>&1 | tail -1
+        break
+    fi
+    sleep 2
+done
 
 # Wait for Tailscale to connect
 echo -e "${GREEN}⏳ Waiting for Tailscale to connect (may take 10-30 seconds)...${NC}"
@@ -121,7 +147,7 @@ TAILSCALE_HOSTNAME=$(docker exec openclaw-tailscale tailscale status --json 2>/d
 echo ""
 
 # Check if containers are running
-if docker-compose ps | grep -q "Up"; then
+if docker ps --filter name=openclaw --format "{{.Status}}" | grep -q "Up"; then
     echo -e "${GREEN}✅ OpenClaw is running!${NC}"
     echo ""
 
