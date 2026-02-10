@@ -163,6 +163,9 @@ if docker ps --filter name=openclaw --format "{{.Status}}" | grep -q "Up"; then
         fi
         echo -e "   ${BLUE}http://$CONTAINER_TAILSCALE_IP:18789${NC}"
         echo ""
+        echo -e "${GREEN}   File Server:${NC}"
+        echo -e "   ${BLUE}http://$CONTAINER_TAILSCALE_IP:8080${NC}"
+        echo ""
         echo -e "   Tailscale device name: ${GREEN}openclaw${NC}"
     else
         echo -e "${YELLOW}⚠️  Could not retrieve Tailscale IP${NC}"

@@ -70,6 +70,25 @@ services:
     ports:
       - "127.0.0.1:2375:2375"
 
+  # Static file server - serves workspace files over Tailnet
+  # Accessible at http://<tailscale-ip>:8080/<filename>
+  fileserver:
+    image: joseluisq/static-web-server:2
+    container_name: openclaw-fileserver
+    restart: unless-stopped
+    network_mode: "service:tailscale"
+    depends_on:
+      - tailscale
+    volumes:
+      - ./data/workspace:/public:ro
+    environment:
+      - SERVER_PORT=8080
+      - SERVER_ROOT=/public
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    user: "1000:1000"
+
   # OpenClaw - uses Tailscale's network
   openclaw:
     image: ghcr.io/openclaw/openclaw:latest
