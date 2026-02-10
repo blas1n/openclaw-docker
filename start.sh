@@ -89,9 +89,14 @@ docker-compose pull
 
 echo ""
 
-mkdir -p ./data ./data/credentials ./data/agents/main/sessions
+mkdir -p ./data ./data/credentials ./data/agents/main/sessions ./data/workspace/scripts
 chmod 700 ./data ./data/credentials
 cp ./openclaw.json ./data/openclaw.json
+
+# Sync workspace skills and scripts from repo into data/workspace
+cp -r ./workspace/skills ./data/workspace/ 2>/dev/null || true
+cp -r ./workspace/scripts ./data/workspace/ 2>/dev/null || true
+echo -e "${GREEN}📂 Synced workspace skills and scripts${NC}"
 
 # Inject API keys from .env into sandbox.docker.env
 # All non-TS_ variables are forwarded to sandbox containers
