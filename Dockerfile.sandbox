@@ -1,0 +1,24 @@
+FROM node:20-bookworm-slim
+
+# --- obsidian-cli ---
+# Detect arch at runtime (buildx TARGETARCH not available without buildx plugin)
+RUN ARCH=$(dpkg --print-architecture) && \
+    apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && \
+    curl -fsSL "https://github.com/Yakitrak/obsidian-cli/releases/download/v0.2.3/obsidian-cli_0.2.3_linux_${ARCH}.tar.gz" \
+      | tar xz -C /usr/local/bin obsidian-cli && \
+    chmod 755 /usr/local/bin/obsidian-cli && \
+    apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+
+# --- 향후 다른 스킬 바이너리 추가 시 여기에 ---
+# RUN curl -fsSL "https://example.com/tool_linux_$(dpkg --print-architecture).tar.gz" \
+#       | tar xz -C /usr/local/bin && chmod 755 /usr/local/bin/tool
+
+# --- Obsidian vault config (obsidian-cli가 vault를 인식하도록) ---
+RUN mkdir -p /home/node/.config/obsidian /home/node/.config/obsidian-cli && \
+    printf '{"vaults":{"default":{"path":"/home/node/.openclaw/workspace/obsidian","ts":1700000000000,"open":true}}}\n' \
+      > /home/node/.config/obsidian/obsidian.json && \
+    printf '{"default_vault_name":"obsidian"}\n' \
+      > /home/node/.config/obsidian-cli/preferences.json && \
+    chown -R node:node /home/node/.config
+
+USER node

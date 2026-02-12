@@ -50,6 +50,17 @@ services:
       - docker-cli:/out
     entrypoint: ["sh", "-c", "cp /usr/local/bin/docker /out/docker && chmod 755 /out/docker"]
 
+  # Custom sandbox image with skill binaries (obsidian-cli, etc.)
+  # Build-only service: produces openclaw-sandbox:latest, then exits.
+  sandbox-image:
+    build:
+      context: .
+      dockerfile: Dockerfile.sandbox
+    image: openclaw-sandbox:latest
+    container_name: openclaw-sandbox-build
+    restart: "no"
+    entrypoint: ["true"]
+
   # Docker-in-Docker (rootless) - isolated Docker daemon for sandbox containers
   # Sandbox containers run INSIDE this daemon, fully isolated from host Docker.
   # Both OpenClaw and DinD mount ./data at the same path (/home/node/.openclaw),
@@ -63,6 +74,7 @@ services:
     privileged: true
     volumes:
       - ./data:/home/node/.openclaw:rw          # Same path as OpenClaw sees
+      - ~/Documents/Obsidian:/home/node/.openclaw/workspace/obsidian:rw  # Obsidian vault
       - dind-data:/var/lib/docker  # Persistent image cache
     environment:
       - DOCKER_TLS_CERTDIR=  # Disable TLS, listen on tcp://0.0.0.0:2375
@@ -81,6 +93,7 @@ services:
       - tailscale
     volumes:
       - ./data/workspace:/public:ro
+      - ~/Documents/Obsidian:/public/obsidian:ro  # Obsidian vault overlay
     environment:
       - SERVER_PORT=8080
       - SERVER_ROOT=/public
@@ -107,6 +120,8 @@ services:
         condition: service_completed_successfully
       dind:
         condition: service_started
+      sandbox-image:
+        condition: service_completed_successfully
 
     # Security hardening
     security_opt:
@@ -126,6 +141,7 @@ services:
     # Volumes for persistent data
     volumes:
       - ./data:/home/node/.openclaw:rw
+      - ~/Documents/Obsidian:/home/node/.openclaw/workspace/obsidian:rw  # Obsidian vault
       - ./logs:/var/log/openclaw:rw
       - docker-cli:/usr/local/sbin:ro
 

@@ -83,9 +83,9 @@ fi
 # Create logs directory
 mkdir -p logs
 
-# Pull latest images
+# Pull latest images (--ignore-buildable skips locally-built sandbox-image)
 echo -e "${GREEN}📥 Pulling latest Docker images...${NC}"
-docker-compose pull
+docker-compose pull --ignore-buildable
 
 echo ""
 
@@ -114,11 +114,11 @@ fi
 echo -e "${GREEN}🐳 Starting Tailscale sidecar, DinD, and OpenClaw...${NC}"
 docker-compose up -d
 
-# Wait for DinD to be ready, then pre-pull sandbox image
-echo -e "${GREEN}📦 Waiting for DinD and pulling sandbox image...${NC}"
+# Wait for DinD to be ready, then load custom sandbox image
+echo -e "${GREEN}📦 Waiting for DinD and loading sandbox image...${NC}"
 for i in $(seq 1 10); do
     if DOCKER_HOST=tcp://127.0.0.1:2375 docker info &>/dev/null; then
-        DOCKER_HOST=tcp://127.0.0.1:2375 docker pull node:20-bookworm-slim 2>&1 | tail -1
+        docker save openclaw-sandbox:latest | DOCKER_HOST=tcp://127.0.0.1:2375 docker load 2>&1 | tail -1
         break
     fi
     sleep 2
