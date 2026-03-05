@@ -124,6 +124,28 @@ for i in $(seq 1 10); do
     sleep 2
 done
 
+# Set up gateway proxy in tailscale container (for sandbox cron RPC access)
+# nc listens on 172.18.0.4:18789, iptables DNAT redirects local 127.0.0.1:18789 → tailscale IP:18789
+setup_gateway_proxy() {
+    local TAILSCALE_IP="$1"
+    local ETH0_IP
+    ETH0_IP=$(docker exec openclaw-tailscale sh -c 'ip addr show eth0 | grep "inet " | grep -oE "([0-9]{1,3}\.){3}[0-9]{1,3}" | head -1' 2>/dev/null || echo "")
+    if [ -z "$ETH0_IP" ] || [ -z "$TAILSCALE_IP" ]; then
+        echo -e "   ${YELLOW}⚠️  Cannot set up gateway proxy (missing IP)${NC}"
+        return
+    fi
+    # Add iptables DNAT rule (idempotent: check before add)
+    docker exec openclaw-tailscale sh -c "
+        iptables -t nat -C OUTPUT -p tcp -d 127.0.0.1 --dport 18789 -j DNAT --to-destination ${TAILSCALE_IP}:18789 2>/dev/null \
+        || iptables -t nat -A OUTPUT -p tcp -d 127.0.0.1 --dport 18789 -j DNAT --to-destination ${TAILSCALE_IP}:18789
+    " 2>/dev/null && true
+    # Restart nc proxy (kill existing, start fresh in background)
+    docker exec openclaw-tailscale sh -c "pkill -f 'nc -lk' 2>/dev/null; true" 2>/dev/null && true
+    docker exec -d openclaw-tailscale sh -c \
+        "nc -lk -s ${ETH0_IP} -p 18789 -e sh -c 'exec nc 127.0.0.1 18789'" 2>/dev/null && true
+    echo -e "   ${GREEN}✅ Gateway proxy: sandbox → ${ETH0_IP}:18789 → ${TAILSCALE_IP}:18789${NC}"
+}
+
 # Wait for Tailscale to connect
 echo -e "${GREEN}⏳ Waiting for Tailscale to connect (may take 10-30 seconds)...${NC}"
 sleep 10
@@ -148,6 +170,12 @@ echo -e "${GREEN}🔐 Tailscale HTTPS...${NC}"
 echo "   Tailscale Serve is managed by healthcheck (auto-configured on container start)"
 
 TAILSCALE_HOSTNAME=$(docker exec openclaw-tailscale tailscale status --json 2>/dev/null | grep -o '"DNSName":"[^"]*"' | cut -d'"' -f4 | sed 's/\.$//' || echo "")
+
+# Set up gateway proxy after we have the tailscale IP
+if [ -n "$CONTAINER_TAILSCALE_IP" ]; then
+    echo -e "${GREEN}🔌 Setting up gateway proxy for sandbox RPC...${NC}"
+    setup_gateway_proxy "$CONTAINER_TAILSCALE_IP"
+fi
 
 echo ""
 

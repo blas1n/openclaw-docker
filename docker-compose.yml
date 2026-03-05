@@ -11,6 +11,10 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+    networks:
+      default:
+        ipv4_address: 172.18.0.4  # Fixed IP so sandbox → gateway proxy is stable
+
     # Tailscale requires NET_ADMIN and NET_RAW
     cap_add:
       - NET_ADMIN
@@ -81,6 +85,9 @@ services:
     # Expose only on localhost - OpenClaw reaches via host.docker.internal
     ports:
       - "127.0.0.1:2375:2375"
+    networks:
+      default:
+        ipv4_address: 172.18.0.100  # Fixed IP so sandbox → gateway auth is stable
 
   # Static file server - serves workspace files over Tailnet
   # Accessible at http://<tailscale-ip>:8080/<filename>
@@ -173,3 +180,11 @@ volumes:
     driver: local
   dind-data:
     driver: local
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1

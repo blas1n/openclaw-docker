@@ -21,4 +21,8 @@ RUN mkdir -p /home/node/.config/obsidian /home/node/.config/obsidian-cli && \
       > /home/node/.config/obsidian-cli/preferences.json && \
     chown -R node:node /home/node/.config
 
+# --- Symlink cron directory to workspace (for Read tool access) ---
+RUN mkdir -p /home/node/.openclaw/workspace && \
+    ln -sf /home/node/.openclaw/cron /home/node/.openclaw/workspace/cron
+
 USER node
